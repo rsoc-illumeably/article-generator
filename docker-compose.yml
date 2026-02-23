@@ -1,0 +1,23 @@
+# Local development compose file.
+# Runs the FastAPI app directly — no nginx, no SSL.
+# Access at http://localhost:8000
+
+services:
+  app:
+    build: .
+    ports:
+      # Map host port 8000 to container port 8000.
+      - "8000:8000"
+    env_file:
+      # Load secrets from your local .env file.
+      - .env
+    volumes:
+      # Mount source and config directories so changes are picked up
+      # without rebuilding the image (works with --reload below).
+      - ./src:/app/src
+      - ./config:/app/config
+    command: >
+      uvicorn src.main:app
+      --host 0.0.0.0
+      --port 8000
+      --reload

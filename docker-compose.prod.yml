@@ -1,0 +1,31 @@
+# Production compose file for the Digital Ocean Droplet.
+# Adds nginx as a reverse proxy that terminates SSL and forwards to FastAPI.
+# Access at https://YOUR_DROPLET_IP
+#
+# Run setup_ssl.sh first to generate the self-signed certs into certs/.
+
+services:
+  app:
+    build: .
+    # Only expose internally to nginx — not bound to the host directly.
+    expose:
+      - "8000"
+    env_file:
+      - .env
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      # Redirect plain HTTP → HTTPS (handled in nginx.conf).
+      - "80:80"
+      # Serve HTTPS traffic.
+      - "443:443"
+    volumes:
+      # Mount nginx config as read-only.
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      # Mount generated certs as read-only.
+      - ./certs:/etc/nginx/certs:ro
+    depends_on:
+      - app
+    restart: unless-stopped

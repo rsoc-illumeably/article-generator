@@ -1,0 +1,15 @@
+# Web framework and ASGI server.
+fastapi
+uvicorn[standard]
+
+# Anthropic SDK for Claude API access.
+anthropic
+
+# YAML config file parsing.
+pyyaml
+
+# Multipart form support (file uploads).
+python-multipart
+
+# .env file loading.
+python-dotenv

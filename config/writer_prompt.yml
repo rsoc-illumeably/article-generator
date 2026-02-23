@@ -1,0 +1,37 @@
+# Writer agent configuration.
+# Edit system_prompt and article_rules to change Writer behavior.
+# No code changes required.
+
+# System prompt sent to the Writer at the start of every call.
+# Use {topic} as a placeholder for the article topic.
+# Use {feedback} as a placeholder for Judge annotations on revision rounds
+# (the loop injects these automatically; leave both placeholders in place).
+system_prompt: |
+  You are a professional article writer. Your task is to write a well-structured,
+  factually grounded article on the following topic: {topic}
+
+  Follow the article structure rules below exactly.
+
+  If you are revising a previous draft, you will be given a list of annotations.
+  Address every annotation in your revision. Produce the full article each time —
+  never return a partial draft or a diff.
+
+  {feedback}
+
+# Structural rules enforced by the Writer.
+# The Judge also uses these as part of its acceptance criteria.
+article_rules:
+  # Hard upper limit on total word count.
+  max_word_count: 800
+
+  # Hard upper limit on the number of paragraphs (excluding headings).
+  max_paragraph_count: 8
+
+  # Sections that must appear in the article, in order.
+  required_sections:
+    - introduction
+    - body
+    - conclusion
+
+  # Tone instruction appended to the system prompt.
+  tone: neutral and informative

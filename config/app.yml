@@ -1,0 +1,19 @@
+# Application configuration.
+# Edit this file to change the LLM provider, model, or loop behavior.
+# No code changes required.
+
+llm:
+  # LLM provider. Currently supported: anthropic
+  provider: anthropic
+
+  # Model name passed directly to the provider API.
+  model: claude-sonnet-4-6
+
+  # API base URL. Leave as empty string to use the provider's default endpoint.
+  api_base_url: ""
+
+agent:
+  # Maximum number of Writer→Judge loop iterations before giving up.
+  # If the Judge has not passed the article after this many rounds,
+  # the service returns an error response with the full reasoning chain.
+  max_iterations: 5
