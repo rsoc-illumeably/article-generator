@@ -62,47 +62,54 @@ article-generator/
 **Prerequisites:** Docker and Docker Compose installed.
 
 1. Clone the repo:
+
    ```bash
    git clone <repo-url>
    cd article-generator
    ```
 
 2. Create your `.env` from the example:
+
    ```bash
    cp .env.example .env
    # Open .env and fill in your API keys and passwords.
    ```
 
-3. Start the service:
+3. Start the service and run detached:
+
    ```bash
-   docker compose up --build
+   docker compose up --build -d
    ```
 
-4. Open `http://localhost:8000` in your browser.
+4. Open `http://localhost:8000/<ENDPOINT>` in your browser.
 
 ---
 
 ## Droplet Deployment
 
 1. SSH into your Droplet and clone the repo:
+
    ```bash
    git clone <repo-url>
    cd article-generator
    ```
 
 2. Create your `.env`:
+
    ```bash
    cp .env.example .env
    nano .env  # fill in your secrets
    ```
 
 3. Generate the self-signed SSL certificate (run once):
+
    ```bash
    chmod +x setup_ssl.sh
    ./setup_ssl.sh
    ```
 
-4. Start the production stack:
+4. Start the production stack and run detached:
+
    ```bash
    docker compose -f docker-compose.prod.yml up -d --build
    ```
@@ -115,6 +122,7 @@ article-generator/
 ## Making Requests with curl
 
 **Generate an article (concise response):**
+
 ```bash
 curl -X POST https://YOUR_DROPLET_IP/api/generate \
   -H "X-API-Key: your_api_key_here" \
@@ -123,6 +131,7 @@ curl -X POST https://YOUR_DROPLET_IP/api/generate \
 ```
 
 **Generate with full verbose output (iteration history + reasoning):**
+
 ```bash
 curl -X POST https://YOUR_DROPLET_IP/api/generate \
   -H "X-API-Key: your_api_key_here" \
@@ -131,6 +140,7 @@ curl -X POST https://YOUR_DROPLET_IP/api/generate \
 ```
 
 **With dev mode enabled:**
+
 ```bash
 curl -X POST https://YOUR_DROPLET_IP/api/generate \
   -H "X-API-Key: your_api_key_here" \
@@ -161,14 +171,14 @@ For local development, replace `https://YOUR_DROPLET_IP` with `http://localhost:
 
 All prompts and structural rules live in `config/`. Editing these files never requires a code change.
 
-| What you want to change | File to edit |
-|---|---|
-| Writer's system prompt | `config/writer_prompt.yml` → `system_prompt` |
-| Article max word/paragraph count, required sections, tone | `config/writer_prompt.yml` → `article_rules` |
-| Judge's system prompt | `config/judge_prompt.yml` → `system_prompt` |
-| Judge's acceptance criteria | `config/judge_prompt.yml` → `acceptance_criteria` |
-| LLM provider or model | `config/app.yml` → `llm` |
-| Max Writer→Judge iterations before error | `config/app.yml` → `agent.max_iterations` |
+| What you want to change                                   | File to edit                                      |
+| --------------------------------------------------------- | ------------------------------------------------- |
+| Writer's system prompt                                    | `config/writer_prompt.yml` → `system_prompt`      |
+| Article max word/paragraph count, required sections, tone | `config/writer_prompt.yml` → `article_rules`      |
+| Judge's system prompt                                     | `config/judge_prompt.yml` → `system_prompt`       |
+| Judge's acceptance criteria                               | `config/judge_prompt.yml` → `acceptance_criteria` |
+| LLM provider or model                                     | `config/app.yml` → `llm`                          |
+| Max Writer→Judge iterations before error                  | `config/app.yml` → `agent.max_iterations`         |
 
 After editing any config file, restart the service:
 
@@ -186,8 +196,8 @@ docker compose -f docker-compose.prod.yml up -d --build
 
 All secrets live in `.env` (never committed). See `.env.example` for the full list.
 
-| Variable | Description |
-|---|---|
-| `ANTHROPIC_API_KEY` | Anthropic API key for Claude |
-| `API_KEY` | Static key required in the `X-API-Key` header for API requests |
-| `FRONTEND_SESSION_PASSWORD` | Password entered in the browser to unlock the UI |
+| Variable                    | Description                                                    |
+| --------------------------- | -------------------------------------------------------------- |
+| `ANTHROPIC_API_KEY`         | Anthropic API key for Claude                                   |
+| `API_KEY`                   | Static key required in the `X-API-Key` header for API requests |
+| `FRONTEND_SESSION_PASSWORD` | Password entered in the browser to unlock the UI               |
