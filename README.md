@@ -14,16 +14,22 @@ article-generator/
 ├── .env.example                   # Required env var template; copy to .env
 ├── .gitignore                     # Excludes .env, certs/, __pycache__, etc.
 ├── requirements.txt               # Python dependencies
+├── requirements-dev.txt           # Test dependencies (pytest, httpx)
+├── pytest.ini                     # Pytest config — sets project root on sys.path
 ├── setup_ssl.sh                   # Generates self-signed SSL cert into certs/
 ├── README.md                      # This file
 │
+├── tests/
+│   ├── conftest.py                # Shared fixtures (TestClient, TEST_API_KEY)
+│   ├── test_auth.py               # X-API-Key authentication tests
+│   └── test_health.py             # GET /health endpoint tests
+│
 ├── src/
-│   ├── main.py                    # FastAPI app factory; registers all routers
+│   ├── main.py                    # FastAPI app factory; all routes defined here
 │   ├── config.py                  # Loads YAML configs and exposes typed dataclasses
 │   │
 │   ├── api/
-│   │   ├── auth.py                # FastAPI dependency: validates X-API-Key header
-│   │   └── routes.py              # POST /api/generate
+│   │   └── auth.py                # FastAPI dependency: validates X-API-Key header
 │   │
 │   ├── frontend/
 │   │   ├── routes.py              # GET / (UI or login), POST /session (password submit)
@@ -124,6 +130,50 @@ article-generator/
 
 5. Access at `https://YOUR_DROPLET_IP`.
    Your browser will warn about the self-signed certificate — this is expected. Proceed past the warning.
+
+---
+
+## Running Tests
+
+Tests run locally against the FastAPI app directly — no Docker required.
+
+**Prerequisites:** Python 3.12+ with a virtual environment.
+
+1. Create and activate a virtual environment (first time only):
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate
+   ```
+
+2. Install all dependencies:
+   ```bash
+   pip install -r requirements.txt -r requirements-dev.txt
+   ```
+
+3. Run the full test suite:
+   ```bash
+   pytest
+   ```
+
+4. Run with verbose output to see each test name:
+   ```bash
+   pytest -v
+   ```
+
+5. Run a single test file:
+   ```bash
+   pytest tests/test_auth.py
+   pytest tests/test_health.py
+   ```
+
+**What the tests currently cover:**
+
+| File | Tests | What is verified |
+|---|---|---|
+| `tests/test_auth.py` | 4 | Missing key → 401; wrong key → 401; correct key → 200; 401 body includes `detail` field |
+| `tests/test_health.py` | 4 | Returns 200; no auth required; response shape (status, provider, model, max_iterations); config values match `config/app.yml` |
+
+Tests do not require a real `.env` file — the `client` fixture in `conftest.py` injects a dummy `API_KEY` directly into the test environment.
 
 ---
 

@@ -1,0 +1,9 @@
+# Development and test dependencies.
+# Install alongside requirements.txt before running tests:
+#   pip install -r requirements.txt -r requirements-dev.txt
+
+# Test runner.
+pytest
+
+# HTTP client required by FastAPI's TestClient.
+httpx
