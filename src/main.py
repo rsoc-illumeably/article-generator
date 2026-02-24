@@ -1,13 +1,19 @@
 """FastAPI application factory.
 
 Creates and configures the FastAPI app instance, loads all YAML config at
-startup, and registers routers. This module is referenced by uvicorn as the
-entry point in both the Dockerfile and the compose files (src.main:app).
+startup, and defines all routes via decorators. This is the entry point
+referenced by uvicorn in the Dockerfile and compose files (src.main:app).
+
+Routes:
+    GET  /health          — liveness check, no auth required
+    POST /api/generate    — generate an article; requires X-API-Key header
 """
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 
+from src.api.auth import require_api_key
 from src.config import get_config
+from src.models.schemas import GenerateRequest
 
 app = FastAPI(
     title="article-generator",
@@ -15,8 +21,7 @@ app = FastAPI(
 )
 
 # Load and validate all YAML configs at startup.
-# Any missing key or bad YAML will raise immediately, before the server
-# begins accepting requests — fail fast rather than fail on first request.
+# Any misconfigured YAML will raise here before the server accepts requests.
 config = get_config()
 
 
@@ -26,7 +31,7 @@ def health() -> dict:
 
     Confirms the server is running and that config loaded correctly.
     Returns a subset of config values so callers can verify the right
-    settings are active.
+    settings are active. No authentication required.
     """
     return {
         "status": "ok",
@@ -34,3 +39,19 @@ def health() -> dict:
         "model": config.llm.model,
         "max_iterations": config.agent.max_iterations,
     }
+
+
+@app.post("/api/generate")
+def generate(
+    request: GenerateRequest,
+    _: None = Depends(require_api_key),
+) -> dict:
+    """Generate a fact-checked article from a topic.
+
+    Protected by X-API-Key header authentication.
+    Accepts a GenerateRequest body (topic, verbose, dev_mode).
+
+    TODO: wire up the agent loop in the next implementation layer.
+    """
+    # Stub — confirms auth passed and the request body parsed correctly.
+    return {"status": "stub", "topic": request.topic}
