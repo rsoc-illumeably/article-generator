@@ -83,6 +83,14 @@ article-generator/
 
 4. Open `http://localhost:8000/<ENDPOINT>` in your browser.
 
+5. To stop service run:
+
+   ```bash
+   docker compose down
+   ```
+
+**Note**: Changes to `.env` will be reflected if the container is recreated. To be safe, always stop/rebuild the container
+
 ---
 
 ## Droplet Deployment
