@@ -44,3 +44,20 @@ class AnthropicClient(LLMInterface):
         response = self._client.messages.create(**kwargs)
         text_blocks = [block for block in response.content if block.type == "text"]
         return text_blocks[-1].text
+
+    def complete_structured(
+        self,
+        system_prompt: str,
+        messages: list[dict],
+        tool: dict,
+    ) -> dict:
+        response = self._client.messages.create(
+            model=self._model,
+            system=system_prompt,
+            messages=messages,
+            tools=[tool],
+            tool_choice={"type": "tool", "name": tool["name"]},
+            max_tokens=4096,
+        )
+        tool_use_block = next(b for b in response.content if b.type == "tool_use")
+        return tool_use_block.input

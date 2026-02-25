@@ -12,7 +12,7 @@ A personal, internal Python service that generates fact-checked articles using a
 | X-API-Key authentication | Done |
 | LLM abstraction (interface, Anthropic client, factory) | Done |
 | Writer agent | Done |
-| Judge agent (YAML verdict, web search) | Done |
+| Judge agent (structured verdict via tool_use, web search) | Done |
 | Writer→Judge loop | Done |
 | `POST /api/generate` (fully wired) | Done |
 | Browser UI (session auth, frontend routes, Tailwind UI) | Not yet implemented |
@@ -204,10 +204,10 @@ Tests run locally against the FastAPI app directly — no Docker required.
 | `tests/test_auth.py` | 4 | Missing key → 401; wrong key → 401; correct key → 200 (loop patched out); 401 body includes `detail` field |
 | `tests/test_health.py` | 2 | Returns 200; response shape contains status, provider, model, max_iterations |
 | `tests/test_writer.py` | 8 | Return value; single LLM call; topic in prompt; no leftover placeholder; feedback injection; feedback header absent without feedback; article rules in prompt; no tools passed |
-| `tests/test_judge.py` | 9 | Web search tool passed; topic and article in prompt; YAML pass verdict; YAML fail verdict with annotations; raises on malformed YAML; raises on non-mapping; raises on missing verdict field; raises on invalid verdict value; raises on non-list annotations |
+| `tests/test_judge.py` | 7 | Web search tool on call 1; topic and article in prompt; verdict tool on call 2; research threaded into verdict call; pass verdict; fail verdict with annotations |
 | `tests/test_loop.py` | 12 | Pass on iteration 1; pass on iteration 2; error after cap; first writer call has no feedback; annotations threaded to next writer call; feedback replaced each round; draft flows writer→judge; verbose=false omits history; verbose=true populates history; dev_mode populates history; error always includes history; IterationRecord fields correct |
 
-No test requires a real `.env` file or live API calls. `conftest.py` injects a dummy `API_KEY` via `monkeypatch`, provides `MockLLMClient` for agent tests, and `test_loop.py` uses its own `MockWriterAgent` and `MockJudgeAgent`.
+No test requires a real `.env` file or live API calls. `conftest.py` injects a dummy `API_KEY` via `monkeypatch`, provides `MockLLMClient` (which stubs both `complete` and `complete_structured`) for agent tests, and `test_loop.py` uses its own `MockWriterAgent` and `MockJudgeAgent`.
 
 ---
 

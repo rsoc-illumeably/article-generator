@@ -12,32 +12,9 @@ system_prompt: |
   Article to review:
   {article}
 
-  Use web search to verify every factual claim in the article.
-
-  YOUR ENTIRE RESPONSE MUST BE RAW YAML. Nothing else.
-  No markdown. No code fences. No backticks. No explanation. No reasoning.
-  No text before the YAML. No text after the YAML.
-  Your response must begin with the word "verdict:" and contain nothing else.
-
-  Accepted format — article passes all criteria:
-
-  verdict: pass
-  annotations: []
-
-  Accepted format — issues found:
-
-  verdict: fail
-  annotations:
-    - The claim that X occurred in 1492 is incorrect — sources show 1493 (paragraph 2)
-    - The conclusion section is missing entirely
-
-  Rules:
-  - verdict must be exactly "pass" or "fail", nothing else
-  - annotations must always be present as a YAML list
-  - annotations is empty ([]) when verdict is pass
-  - each annotation states what is wrong and where in the article it appears
-  - do not wrap your response in code fences or backticks
-  - do not include any prose, preamble, or explanation before or after the YAML
+  Use web search to verify every factual claim in the article against the
+  acceptance criteria below. When you have finished your research, call the
+  submit_verdict tool with your verdict and any annotations.
 
 # The Judge checks each of these criteria before issuing a verdict.
 # Add or remove items here to tighten or relax acceptance requirements.
