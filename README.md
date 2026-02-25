@@ -19,10 +19,15 @@ article-generator/
 ├── setup_ssl.sh                   # Generates self-signed SSL cert into certs/
 ├── README.md                      # This file
 │
+├── scripts/
+│   └── check_api.py               # Live connectivity check: verifies API key + provider reachability
+│
 ├── tests/
-│   ├── conftest.py                # Shared fixtures (TestClient, TEST_API_KEY)
+│   ├── conftest.py                # Shared fixtures: TestClient, TEST_API_KEY, MockLLMClient
 │   ├── test_auth.py               # X-API-Key authentication tests
-│   └── test_health.py             # GET /health endpoint tests
+│   ├── test_health.py             # GET /health endpoint tests
+│   ├── test_writer.py             # WriterAgent unit tests (mocked LLM)
+│   └── test_judge.py              # JudgeAgent unit tests + _parse_verdict error cases (mocked LLM)
 │
 ├── src/
 │   ├── main.py                    # FastAPI app factory; all routes defined here
@@ -38,12 +43,13 @@ article-generator/
 │   │       └── index.html         # Single-page Tailwind UI
 │   │
 │   ├── agents/
-│   │   ├── writer.py              # Writer agent: produces article drafts
-│   │   ├── judge.py               # Judge agent: fact-checks via web search
+│   │   ├── writer.py              # Writer agent: builds prompt, calls LLM, returns draft
+│   │   ├── judge.py               # Judge agent: fact-checks via web search, parses YAML verdict
 │   │   └── loop.py                # Orchestrates the Writer→Judge loop
 │   │
 │   ├── llm/
 │   │   ├── interface.py           # Abstract LLM base class (provider-agnostic)
+│   │   ├── factory.py             # Returns the configured LLM client from config/app.yml
 │   │   └── anthropic_client.py    # Concrete Anthropic/Claude implementation
 │   │
 │   └── models/
@@ -164,6 +170,8 @@ Tests run locally against the FastAPI app directly — no Docker required.
    ```bash
    pytest tests/test_auth.py
    pytest tests/test_health.py
+   pytest tests/test_writer.py
+   pytest tests/test_judge.py
    ```
 
 **What the tests currently cover:**
@@ -171,9 +179,23 @@ Tests run locally against the FastAPI app directly — no Docker required.
 | File | Tests | What is verified |
 |---|---|---|
 | `tests/test_auth.py` | 4 | Missing key → 401; wrong key → 401; correct key → 200; 401 body includes `detail` field |
-| `tests/test_health.py` | 4 | Returns 200; no auth required; response shape (status, provider, model, max_iterations); config values match `config/app.yml` |
+| `tests/test_health.py` | 2 | Returns 200; response shape contains status, provider, model, max_iterations |
+| `tests/test_writer.py` | 8 | Return value; single LLM call; topic in prompt; no leftover placeholder; feedback injection; feedback header absent without feedback; article rules in prompt; no tools passed |
+| `tests/test_judge.py` | 9 | Web search tool passed; topic and article in prompt; YAML pass verdict; YAML fail verdict with annotations; raises on malformed YAML; raises on non-mapping; raises on missing verdict field; raises on invalid verdict value; raises on non-list annotations |
 
-Tests do not require a real `.env` file — the `client` fixture in `conftest.py` injects a dummy `API_KEY` directly into the test environment.
+Tests do not require a real `.env` file — `conftest.py` injects a dummy `API_KEY` via `monkeypatch` and provides `MockLLMClient` for agent tests.
+
+---
+
+## Checking API Connectivity
+
+Before deploying, verify that your API key is valid and the configured provider is reachable:
+
+```bash
+python scripts/check_api.py
+```
+
+This script reads the active provider and model from `config/app.yml`, loads credentials from `.env`, makes a single minimal completion call, and reports pass or fail. No Docker required — run it directly from the project root with the virtual environment active.
 
 ---
 
