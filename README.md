@@ -1,6 +1,21 @@
 # article-generator
 
-A personal, internal Python service that generates fact-checked articles using a two-agent LLM loop (Writer + Judge). Containerized with Docker and deployable to a Digital Ocean Droplet. Accessible via a browser UI or curl.
+A personal, internal Python service that generates fact-checked articles using a two-agent LLM loop (Writer + Judge). Containerized with Docker and deployable to a Digital Ocean Droplet. Accessible via curl or a browser UI.
+
+---
+
+## Implementation Status
+
+| Layer | Status |
+|---|---|
+| FastAPI app, config loader, Pydantic schemas | Done |
+| X-API-Key authentication | Done |
+| LLM abstraction (interface, Anthropic client, factory) | Done |
+| Writer agent | Done |
+| Judge agent (YAML verdict, web search) | Done |
+| Writer→Judge loop | Done |
+| `POST /api/generate` (fully wired) | Done |
+| Browser UI (session auth, frontend routes, Tailwind UI) | Not yet implemented |
 
 ---
 
@@ -36,7 +51,7 @@ article-generator/
 │   ├── api/
 │   │   └── auth.py                # FastAPI dependency: validates X-API-Key header
 │   │
-│   ├── frontend/
+│   ├── frontend/                  # NOT YET IMPLEMENTED — stubs only
 │   │   ├── routes.py              # GET / (UI or login), POST /session (password submit)
 │   │   ├── session.py             # In-memory session store for browser auth
 │   │   └── templates/
@@ -45,11 +60,11 @@ article-generator/
 │   ├── agents/
 │   │   ├── writer.py              # Writer agent: builds prompt, calls LLM, returns draft
 │   │   ├── judge.py               # Judge agent: fact-checks via web search, parses YAML verdict
-│   │   └── loop.py                # Orchestrates the Writer→Judge loop
+│   │   └── loop.py                # Writer→Judge iteration loop; returns GenerateResponse or ErrorResponse
 │   │
 │   ├── llm/
 │   │   ├── interface.py           # Abstract LLM base class (provider-agnostic)
-│   │   ├── factory.py             # Returns the configured LLM client from config/app.yml
+│   │   ├── factory.py             # Instantiates the configured LLM client from config/app.yml
 │   │   └── anthropic_client.py    # Concrete Anthropic/Claude implementation
 │   │
 │   └── models/
@@ -93,15 +108,19 @@ article-generator/
    docker compose up --build -d
    ```
 
-4. Open `http://localhost:8000/<ENDPOINT>` in your browser.
+4. Confirm the service is running:
 
-5. To stop service run:
+   ```bash
+   curl http://localhost:8000/health
+   ```
+
+5. To stop the service:
 
    ```bash
    docker compose down
    ```
 
-**Note**: Changes to `.env` will be reflected if the container is recreated. To be safe, always stop/rebuild the container
+**Note:** Changes to `.env` are picked up when the container is recreated (`docker compose up`), not just restarted (`docker compose restart`). Rebuilding (`--build`) is only needed when `requirements.txt` or the `Dockerfile` changes.
 
 ---
 
@@ -183,7 +202,9 @@ Tests run locally against the FastAPI app directly — no Docker required.
 | `tests/test_writer.py` | 8 | Return value; single LLM call; topic in prompt; no leftover placeholder; feedback injection; feedback header absent without feedback; article rules in prompt; no tools passed |
 | `tests/test_judge.py` | 9 | Web search tool passed; topic and article in prompt; YAML pass verdict; YAML fail verdict with annotations; raises on malformed YAML; raises on non-mapping; raises on missing verdict field; raises on invalid verdict value; raises on non-list annotations |
 
-Tests do not require a real `.env` file — `conftest.py` injects a dummy `API_KEY` via `monkeypatch` and provides `MockLLMClient` for agent tests.
+**Note on `test_auth.py`:** `test_correct_key_returns_200` sends a real request to `POST /api/generate`, which now calls the full agent loop. This test will fail without `ANTHROPIC_API_KEY` set in the test environment. This test needs to be updated now that the route is wired — it is a known pending fix.
+
+Agent tests (`test_writer.py`, `test_judge.py`) do not require a real `.env` file — they use `MockLLMClient` from `conftest.py`. Auth and health tests inject a dummy `API_KEY` via `monkeypatch`.
 
 ---
 
@@ -191,7 +212,7 @@ Tests do not require a real `.env` file — `conftest.py` injects a dummy `API_K
 
 Before deploying, verify that your API key is valid and the configured provider is reachable.
 
-**Prerequisites:** Python 3.12+ with a virtual environment (same setup as Running Tests above).
+**Prerequisites:** Virtual environment active with dependencies installed.
 
 1. Activate the virtual environment:
    ```bash
@@ -203,7 +224,7 @@ Before deploying, verify that your API key is valid and the configured provider 
    python scripts/check_api.py
    ```
 
-The script reads the active provider and model from `config/app.yml`, auto-loads credentials from `.env`, instantiates the configured LLM client, sends a single minimal completion request, and prints the result.
+The script reads the active provider and model from `config/app.yml`, auto-loads credentials from `.env`, instantiates the configured LLM client, sends a single minimal completion request, and reports pass or fail.
 
 **Expected output on success:**
 ```
@@ -229,6 +250,8 @@ Model    : claude-sonnet-4-6
 
 ## Making Requests with curl
 
+The `POST /api/generate` endpoint is fully implemented. It runs the Writer→Judge loop and returns either a success response (article passed fact-checking) or an error response (iteration cap reached without passing).
+
 **Generate an article (concise response):**
 
 ```bash
@@ -238,7 +261,7 @@ curl -X POST https://YOUR_DROPLET_IP/api/generate \
   -d '{"topic": "The history of the Roman Empire", "verbose": false}'
 ```
 
-**Generate with full verbose output (iteration history + reasoning):**
+**Generate with full verbose output (iteration history included):**
 
 ```bash
 curl -X POST https://YOUR_DROPLET_IP/api/generate \
@@ -247,7 +270,7 @@ curl -X POST https://YOUR_DROPLET_IP/api/generate \
   -d '{"topic": "The history of the Roman Empire", "verbose": true}'
 ```
 
-**With dev mode enabled:**
+**With dev mode enabled (includes per-iteration agent trace):**
 
 ```bash
 curl -X POST https://YOUR_DROPLET_IP/api/generate \
@@ -262,15 +285,62 @@ For local development, replace `https://YOUR_DROPLET_IP` with `http://localhost:
 > Add `-k` to skip cert verification for local testing against the prod stack:
 > `curl -k -X POST https://YOUR_DROPLET_IP/api/generate ...`
 
+**Success response shape (`verbose: false`):**
+```json
+{
+  "success": true,
+  "article": "<full article text>",
+  "iterations": 2,
+  "history": null
+}
+```
+
+**Success response shape (`verbose: true`):**
+```json
+{
+  "success": true,
+  "article": "<full article text>",
+  "iterations": 2,
+  "history": [
+    {
+      "iteration": 1,
+      "writer_output": "<first draft>",
+      "judge_verdict": "fail",
+      "judge_annotations": ["Claim X is unverified.", "Missing conclusion."]
+    },
+    {
+      "iteration": 2,
+      "writer_output": "<revised draft>",
+      "judge_verdict": "pass",
+      "judge_annotations": []
+    }
+  ]
+}
+```
+
+**Error response (iteration cap reached):**
+```json
+{
+  "success": false,
+  "error": "Article did not pass after 5 iterations.",
+  "iterations": 5,
+  "history": [...]
+}
+```
+
 ---
 
 ## Using the Browser UI
 
+> **Not yet implemented.** The frontend layer (`src/frontend/`) is scaffolded but not built. Access the service via curl until the browser UI is complete.
+
+When implemented, the browser UI will work as follows:
+
 1. Navigate to `http://localhost:8000` (local) or `https://YOUR_DROPLET_IP` (prod).
 2. Enter the session password set in your `.env` to unlock the UI.
 3. Type a topic in the text box, or upload a `.txt` file — the file's contents are loaded into the topic field and treated identically to typed input.
-4. Toggle **Verbose** to include the full iteration history and per-agent reasoning in the response.
-5. Toggle **Dev Panel** to see the turn-by-turn agent interaction rendered after the article loads (agent name, output or flags, iteration number).
+4. Toggle **Verbose** to include the full iteration history in the response.
+5. Toggle **Dev Panel** to see the turn-by-turn agent interaction rendered after the article loads.
 6. Click **Generate** and wait. Results appear in the output area below.
 
 ---
@@ -308,4 +378,4 @@ All secrets live in `.env` (never committed). See `.env.example` for the full li
 | --------------------------- | -------------------------------------------------------------- |
 | `ANTHROPIC_API_KEY`         | Anthropic API key for Claude                                   |
 | `API_KEY`                   | Static key required in the `X-API-Key` header for API requests |
-| `FRONTEND_SESSION_PASSWORD` | Password entered in the browser to unlock the UI               |
+| `FRONTEND_SESSION_PASSWORD` | Password entered in the browser to unlock the UI (not yet active) |

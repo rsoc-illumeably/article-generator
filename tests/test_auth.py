@@ -1,5 +1,6 @@
 """Tests for X-API-Key authentication on POST /api/generate."""
 
+from src.models.schemas import GenerateResponse
 from tests.conftest import TEST_API_KEY
 
 
@@ -19,8 +20,15 @@ def test_wrong_key_returns_401(client):
     assert response.status_code == 401
 
 
-def test_correct_key_returns_200(client):
-    """A request with the correct X-API-Key should be accepted with 200."""
+def test_correct_key_returns_200(client, monkeypatch):
+    """A request with the correct X-API-Key should be accepted with 200.
+
+    The loop is patched out — this test is about auth only, not generation.
+    """
+    monkeypatch.setattr(
+        "src.main.run",
+        lambda topic, verbose, dev_mode: GenerateResponse(article="ok", iterations=1),
+    )
     response = client.post(
         "/api/generate",
         json={"topic": "test"},

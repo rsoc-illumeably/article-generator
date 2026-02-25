@@ -11,6 +11,7 @@ Routes:
 
 from fastapi import Depends, FastAPI
 
+from src.agents.loop import run
 from src.api.auth import require_api_key
 from src.config import get_config
 from src.models.schemas import GenerateRequest
@@ -50,8 +51,12 @@ def generate(
 
     Protected by X-API-Key header authentication.
     Accepts a GenerateRequest body (topic, verbose, dev_mode).
-
-    TODO: wire up the agent loop in the next implementation layer.
+    Returns a GenerateResponse on success or ErrorResponse if the iteration
+    cap is reached without the Judge passing the article.
     """
-    # Stub — confirms auth passed and the request body parsed correctly.
-    return {"status": "stub", "topic": request.topic}
+    result = run(
+        topic=request.topic,
+        verbose=request.verbose,
+        dev_mode=request.dev_mode,
+    )
+    return result.model_dump()
