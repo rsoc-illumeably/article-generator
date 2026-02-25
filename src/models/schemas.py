@@ -40,6 +40,10 @@ class IterationRecord(BaseModel):
     # issue and its location in the article.
     judge_annotations: list[str] = Field(default_factory=list)
 
+    # Wall-clock seconds from the start of the Writer call to the end of the
+    # Judge call for this iteration.
+    duration_seconds: float = 0.0
+
 
 class GenerateResponse(BaseModel):
     success: bool = True
@@ -50,7 +54,7 @@ class GenerateResponse(BaseModel):
     # Total number of Writer→Judge iterations that completed.
     iterations: int
 
-    # Populated when verbose=True or dev_mode=True; omitted otherwise.
+    # Populated when verbose=True; omitted otherwise.
     history: Optional[list[IterationRecord]] = None
 
 

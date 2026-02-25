@@ -20,6 +20,8 @@ Testable inner function:
     _execute(topic, verbose, writer, judge, job) → GenerateResponse | ErrorResponse
 """
 
+import time
+
 from src.agents.judge import JudgeAgent
 from src.agents.writer import WriterAgent
 from src.config import get_config
@@ -72,6 +74,8 @@ def _execute(
     feedback: list[str] | None = None
 
     for iteration in range(1, max_iterations + 1):
+        iteration_start = time.monotonic()
+
         if job is not None:
             job["iteration"] = iteration
             job["phase"] = "writing"
@@ -82,6 +86,7 @@ def _execute(
             job["phase"] = "judging"
 
         result = judge.judge(topic=topic, article=draft)
+        duration = time.monotonic() - iteration_start
 
         if job is not None:
             job["last_verdict"] = result.verdict
@@ -92,6 +97,7 @@ def _execute(
                 writer_output=draft,
                 judge_verdict=result.verdict,
                 judge_annotations=result.annotations,
+                duration_seconds=round(duration, 1),
             )
         )
 
