@@ -189,13 +189,41 @@ Tests do not require a real `.env` file — `conftest.py` injects a dummy `API_K
 
 ## Checking API Connectivity
 
-Before deploying, verify that your API key is valid and the configured provider is reachable:
+Before deploying, verify that your API key is valid and the configured provider is reachable.
 
-```bash
-python scripts/check_api.py
+**Prerequisites:** Python 3.12+ with a virtual environment (same setup as Running Tests above).
+
+1. Activate the virtual environment:
+   ```bash
+   source .venv/bin/activate
+   ```
+
+2. Run the script from the project root:
+   ```bash
+   python scripts/check_api.py
+   ```
+
+The script reads the active provider and model from `config/app.yml`, auto-loads credentials from `.env`, instantiates the configured LLM client, sends a single minimal completion request, and prints the result.
+
+**Expected output on success:**
+```
+Provider : anthropic
+Model    : claude-sonnet-4-6
+
+  Instantiating AnthropicClient...
+  Sending minimal completion request...
+  Response: 'OK'
+
+[PASS] API call succeeded.
 ```
 
-This script reads the active provider and model from `config/app.yml`, loads credentials from `.env`, makes a single minimal completion call, and reports pass or fail. No Docker required — run it directly from the project root with the virtual environment active.
+**Failure modes:**
+
+| Output | Cause | Fix |
+|---|---|---|
+| `[FAIL] Missing environment variable: 'ANTHROPIC_API_KEY'` | Key absent from `.env` | Add `ANTHROPIC_API_KEY` to `.env` |
+| `[FAIL] No connectivity check implemented for provider '...'` | `config/app.yml` names an unsupported provider | Correct the provider name or implement a check for it |
+| `[FAIL] <API error message>` | Key present but invalid, or provider unreachable | Verify the key is correct and the provider API is up |
 
 ---
 
