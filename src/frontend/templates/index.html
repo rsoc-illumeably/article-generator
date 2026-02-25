@@ -1,25 +1,278 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Article Generator</title>
-    <!-- Tailwind CSS via CDN — no build step required. -->
-    <script src="https://cdn.tailwindcss.com"></script>
-  </head>
-  <body class="bg-gray-50 text-gray-900 min-h-screen">
-    <!--
-      TODO: implement full UI, including:
-        - Login / session password gate
-        - Topic text input
-        - File upload (reads contents into topic field)
-        - Verbose toggle
-        - Dev panel toggle
-        - Submit button
-        - Results display area (article + optional dev panel)
-    -->
-    <div id="app" class="max-w-3xl mx-auto py-12 px-4">
-      <h1 class="text-2xl font-semibold">Article Generator</h1>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Article Generator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-800">
+  <div class="max-w-2xl mx-auto px-4 py-12">
+
+    <h1 class="text-xl font-semibold mb-8 tracking-tight">Article Generator</h1>
+
+    <!-- Input card -->
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-5">
+
+      <!-- Topic -->
+      <div>
+        <label class="block text-xs font-medium text-slate-500 uppercase tracking-wide mb-1.5">
+          Topic
+        </label>
+        <textarea id="topic" rows="3" placeholder="e.g. The history of the Roman Empire"
+          class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2
+                 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent
+                 transition resize-none"></textarea>
+        <label class="mt-2 inline-flex items-center gap-1.5 text-xs text-slate-400
+                      hover:text-slate-600 cursor-pointer transition">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none"
+               viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+          </svg>
+          <span>Upload .txt</span>
+          <input id="fileInput" type="file" accept=".txt" class="hidden" />
+        </label>
+      </div>
+
+      <!-- Options -->
+      <div class="flex items-center gap-6">
+        <label class="flex items-center gap-2 text-sm text-slate-600 cursor-pointer select-none">
+          <input id="verbose" type="checkbox"
+            class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+          Verbose
+        </label>
+      </div>
+
+      <!-- Generate button -->
+      <div class="pt-1">
+        <button id="btn" onclick="generate()"
+          class="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed
+                 text-white text-sm font-medium px-5 py-2 rounded-lg transition-colors">
+          Generate
+        </button>
+      </div>
+
     </div>
-  </body>
+
+    <!-- Progress (visible while running) -->
+    <div id="progress" class="hidden mt-4 bg-white rounded-2xl border border-slate-200 shadow-sm px-5 py-4">
+      <div class="flex items-center justify-between">
+        <span id="progressText" class="text-sm text-slate-600">Starting...</span>
+        <span id="elapsed" class="text-sm text-slate-400 tabular-nums">0:00</span>
+      </div>
+    </div>
+
+    <!-- Error -->
+    <div id="error"
+      class="hidden mt-4 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-600">
+    </div>
+
+    <!-- Output -->
+    <div id="output" class="hidden mt-6">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="font-medium text-slate-700">Article</h2>
+        <div class="flex items-center gap-2">
+          <span id="timeBadge" class="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full"></span>
+          <span id="iterBadge" class="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full"></span>
+        </div>
+      </div>
+      <div id="article"
+        class="bg-white rounded-2xl border border-slate-200 shadow-sm px-7 py-6
+               text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
+      </div>
+    </div>
+
+    <!-- Dev panel (iteration history) -->
+    <div id="devPanel" class="hidden mt-6">
+      <h2 class="font-medium text-slate-700 mb-3">Iterations</h2>
+      <div id="history" class="space-y-2"></div>
+    </div>
+
+  </div>
+
+  <script>
+    // API key injected server-side — never entered by the user.
+    const API_KEY = '__API_KEY__';
+
+    // File upload: read .txt contents into the topic field.
+    document.getElementById('fileInput').addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        document.getElementById('topic').value = ev.target.result.trim();
+      };
+      reader.readAsText(file);
+    });
+
+    // --- Timer ---
+
+    let timerInterval = null;
+    let timerStart = null;
+
+    function startTimer() {
+      timerStart = Date.now();
+      document.getElementById('progress').classList.remove('hidden');
+      timerInterval = setInterval(() => {
+        const s = Math.floor((Date.now() - timerStart) / 1000);
+        document.getElementById('elapsed').textContent =
+          `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+      }, 1000);
+    }
+
+    function stopTimer() {
+      clearInterval(timerInterval);
+      const s = Math.floor((Date.now() - timerStart) / 1000);
+      return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+    }
+
+    // --- Polling ---
+
+    let pollInterval = null;
+
+    function startPolling(jobId) {
+      pollInterval = setInterval(() => poll(jobId), 2000);
+    }
+
+    function stopPolling() {
+      clearInterval(pollInterval);
+    }
+
+    async function poll(jobId) {
+      try {
+        const res = await fetch(`/api/status/${jobId}`, {
+          headers: { 'X-API-Key': API_KEY },
+        });
+        const data = await res.json();
+
+        if (data.status === 'running') {
+          updateProgress(data);
+
+        } else if (data.status === 'done') {
+          stopPolling();
+          const elapsed = stopTimer();
+          document.getElementById('progress').classList.add('hidden');
+          renderResult(data.result, elapsed);
+          document.getElementById('btn').disabled = false;
+
+        } else if (data.status === 'error') {
+          stopPolling();
+          stopTimer();
+          document.getElementById('progress').classList.add('hidden');
+          showError(data.error || 'Generation failed.');
+          if (data.result?.history?.length) {
+            renderHistory(data.result.history);
+            document.getElementById('devPanel').classList.remove('hidden');
+          }
+          document.getElementById('btn').disabled = false;
+        }
+      } catch (err) {
+        // Network blip — log and wait for the next poll cycle.
+        console.warn('Poll failed, retrying:', err.message);
+      }
+    }
+
+    function updateProgress(data) {
+      const phaseLabel = data.phase === 'writing'
+        ? 'Writer drafting\u2026'
+        : data.phase === 'judging'
+          ? 'Judge reviewing\u2026'
+          : 'Starting\u2026';
+      const iterLabel = data.iteration > 0
+        ? `Iteration ${data.iteration} of ${data.max_iterations} \u2014 ${phaseLabel}`
+        : phaseLabel;
+      document.getElementById('progressText').textContent = iterLabel;
+    }
+
+    // --- Main generate handler ---
+
+    async function generate() {
+      const topic   = document.getElementById('topic').value.trim();
+      const verbose = document.getElementById('verbose').checked;
+
+      if (!topic) return showError('Topic is required.');
+
+      clearOutput();
+      document.getElementById('btn').disabled = true;
+      startTimer();
+
+      try {
+        const res = await fetch('/api/generate', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY },
+          body:    JSON.stringify({ topic, verbose }),
+        });
+
+        if (!res.ok) {
+          const data = await res.json();
+          stopTimer();
+          document.getElementById('progress').classList.add('hidden');
+          showError(data.detail || 'Submission failed.');
+          document.getElementById('btn').disabled = false;
+          return;
+        }
+
+        const { job_id } = await res.json();
+        startPolling(job_id);
+
+      } catch (err) {
+        stopTimer();
+        document.getElementById('progress').classList.add('hidden');
+        showError('Network error: ' + err.message);
+        document.getElementById('btn').disabled = false;
+      }
+    }
+
+    // --- Rendering ---
+
+    function renderResult(result, elapsed) {
+      document.getElementById('article').textContent = result.article;
+      document.getElementById('timeBadge').textContent = elapsed;
+      document.getElementById('iterBadge').textContent =
+        `${result.iterations} iteration${result.iterations === 1 ? '' : 's'}`;
+      document.getElementById('output').classList.remove('hidden');
+
+      if (result.history?.length) {
+        renderHistory(result.history);
+        document.getElementById('devPanel').classList.remove('hidden');
+      }
+    }
+
+    function renderHistory(items) {
+      document.getElementById('history').innerHTML = items.map(it => {
+        const pass = it.judge_verdict === 'pass';
+        const badge = pass
+          ? '<span class="text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">PASS</span>'
+          : '<span class="text-xs font-medium text-red-500 bg-red-50 px-2 py-0.5 rounded-full">FAIL</span>';
+        const notes = it.judge_annotations.length
+          ? `<ul class="mt-2 space-y-1">${it.judge_annotations.map(a =>
+              `<li class="text-xs text-slate-500 pl-3 border-l-2 border-slate-200">${a}</li>`
+            ).join('')}</ul>`
+          : '';
+        return `
+          <div class="bg-white rounded-xl border border-slate-200 px-4 py-3">
+            <div class="flex items-center justify-between">
+              <span class="text-sm font-medium text-slate-600">Iteration ${it.iteration}</span>
+              ${badge}
+            </div>
+            ${notes}
+          </div>`;
+      }).join('');
+    }
+
+    function showError(msg) {
+      const el = document.getElementById('error');
+      el.textContent = msg;
+      el.classList.remove('hidden');
+    }
+
+    function clearOutput() {
+      document.getElementById('error').classList.add('hidden');
+      document.getElementById('output').classList.add('hidden');
+      document.getElementById('devPanel').classList.add('hidden');
+      document.getElementById('progressText').textContent = 'Starting\u2026';
+    }
+  </script>
+</body>
 </html>

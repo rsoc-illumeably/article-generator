@@ -1,14 +1,27 @@
-"""Frontend session management.
+"""In-memory session store for browser authentication.
 
-Manages a simple in-memory session store for browser-based authentication.
-A session is created when the user enters the correct FRONTEND_SESSION_PASSWORD.
-Sessions persist until the server restarts (no persistence required — this is
-a personal, single-user tool).
-
-Functions:
-    create_session()  — generates a session token and stores it
-    is_valid_session(token) — returns True if the token is in the store
-    delete_session(token)   — removes a session (logout)
+Sessions are stored as a set of random IDs in process memory.
+All sessions are cleared when the container restarts — by design.
+No expiry: a session is valid until the container goes down.
 """
 
-# TODO: implement
+import secrets
+
+_sessions: set[str] = set()
+
+
+def create_session() -> str:
+    """Generate a new session ID, store it, and return it."""
+    session_id = secrets.token_urlsafe(32)
+    _sessions.add(session_id)
+    return session_id
+
+
+def is_valid(session_id: str | None) -> bool:
+    """Return True if the session ID is known and active."""
+    return session_id is not None and session_id in _sessions
+
+
+def delete_session(session_id: str) -> None:
+    """Remove a session ID (logout)."""
+    _sessions.discard(session_id)

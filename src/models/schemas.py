@@ -25,10 +25,6 @@ class GenerateRequest(BaseModel):
     # When True, the response includes the full per-iteration history and reasoning.
     verbose: bool = Field(False, description="Include full iteration history in the response.")
 
-    # When True, the response includes data the frontend dev panel needs to render
-    # the turn-by-turn agent interaction. Independent of verbose.
-    dev_mode: bool = Field(False, description="Return structured agent trace for the dev panel.")
-
 
 class IterationRecord(BaseModel):
     # 1-based iteration counter.

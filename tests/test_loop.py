@@ -57,7 +57,7 @@ def test_pass_on_first_iteration():
     """Loop returns GenerateResponse immediately when judge passes on iteration 1."""
     writer = MockWriterAgent(["draft 1"])
     judge = MockJudgeAgent([JudgeResult("pass", [])])
-    result = _execute("The Roman Empire", False, False, writer, judge)
+    result = _execute("The Roman Empire", False, writer, judge)
     assert isinstance(result, GenerateResponse)
     assert result.success is True
     assert result.article == "draft 1"
@@ -71,7 +71,7 @@ def test_pass_on_second_iteration():
         JudgeResult("fail", ["Claim X is unverified."]),
         JudgeResult("pass", []),
     ])
-    result = _execute("The Roman Empire", False, False, writer, judge)
+    result = _execute("The Roman Empire", False, writer, judge)
     assert isinstance(result, GenerateResponse)
     assert result.article == "draft 2"
     assert result.iterations == 2
@@ -81,7 +81,7 @@ def test_error_after_max_iterations():
     """Loop returns ErrorResponse when judge never passes within the iteration cap."""
     writer = MockWriterAgent([f"draft {i}" for i in range(1, MAX_ITER + 1)])
     judge = MockJudgeAgent([JudgeResult("fail", ["issue"]) for _ in range(MAX_ITER)])
-    result = _execute("The Roman Empire", False, False, writer, judge)
+    result = _execute("The Roman Empire", False, writer, judge)
     assert isinstance(result, ErrorResponse)
     assert result.success is False
     assert result.iterations == MAX_ITER
@@ -97,7 +97,7 @@ def test_first_writer_call_has_no_feedback():
     """Writer receives feedback=None on the first iteration — no prior judge output exists."""
     writer = MockWriterAgent(["draft 1"])
     judge = MockJudgeAgent([JudgeResult("pass", [])])
-    _execute("The Roman Empire", False, False, writer, judge)
+    _execute("The Roman Empire", False, writer, judge)
     assert writer.calls[0]["feedback"] is None
 
 
@@ -108,7 +108,7 @@ def test_annotations_threaded_to_next_writer_call():
         JudgeResult("fail", ["Claim X is wrong.", "Missing conclusion section."]),
         JudgeResult("pass", []),
     ])
-    _execute("The Roman Empire", False, False, writer, judge)
+    _execute("The Roman Empire", False, writer, judge)
     assert writer.calls[1]["feedback"] == ["Claim X is wrong.", "Missing conclusion section."]
 
 
@@ -120,7 +120,7 @@ def test_feedback_updates_each_iteration():
         JudgeResult("fail", ["issue from round 2"]),
         JudgeResult("pass", []),
     ])
-    _execute("The Roman Empire", False, False, writer, judge)
+    _execute("The Roman Empire", False, writer, judge)
     assert writer.calls[1]["feedback"] == ["issue from round 1"]
     assert writer.calls[2]["feedback"] == ["issue from round 2"]
 
@@ -137,21 +137,21 @@ def test_draft_flows_from_writer_to_judge():
         JudgeResult("fail", ["issue"]),
         JudgeResult("pass", []),
     ])
-    _execute("The Roman Empire", False, False, writer, judge)
+    _execute("The Roman Empire", False, writer, judge)
     assert judge.calls[0]["article"] == "first draft"
     assert judge.calls[1]["article"] == "second draft"
 
 
 # ---------------------------------------------------------------------------
-# History and verbose/dev_mode flags
+# History and verbose flag
 # ---------------------------------------------------------------------------
 
 
 def test_verbose_false_omits_history_on_success():
-    """GenerateResponse.history is None when verbose=False and dev_mode=False."""
+    """GenerateResponse.history is None when verbose=False."""
     writer = MockWriterAgent(["draft 1"])
     judge = MockJudgeAgent([JudgeResult("pass", [])])
-    result = _execute("The Roman Empire", False, False, writer, judge)
+    result = _execute("The Roman Empire", False, writer, judge)
     assert result.history is None
 
 
@@ -159,16 +159,7 @@ def test_verbose_true_populates_history_on_success():
     """GenerateResponse.history is populated when verbose=True."""
     writer = MockWriterAgent(["draft 1"])
     judge = MockJudgeAgent([JudgeResult("pass", [])])
-    result = _execute("The Roman Empire", True, False, writer, judge)
-    assert result.history is not None
-    assert len(result.history) == 1
-
-
-def test_dev_mode_populates_history_on_success():
-    """GenerateResponse.history is populated when dev_mode=True, even if verbose=False."""
-    writer = MockWriterAgent(["draft 1"])
-    judge = MockJudgeAgent([JudgeResult("pass", [])])
-    result = _execute("The Roman Empire", False, True, writer, judge)
+    result = _execute("The Roman Empire", True, writer, judge)
     assert result.history is not None
     assert len(result.history) == 1
 
@@ -177,7 +168,7 @@ def test_error_always_includes_history_regardless_of_verbose():
     """ErrorResponse.history is always populated even when verbose=False."""
     writer = MockWriterAgent([f"draft {i}" for i in range(1, MAX_ITER + 1)])
     judge = MockJudgeAgent([JudgeResult("fail", ["issue"]) for _ in range(MAX_ITER)])
-    result = _execute("The Roman Empire", False, False, writer, judge)
+    result = _execute("The Roman Empire", False, writer, judge)
     assert isinstance(result, ErrorResponse)
     assert result.history is not None
     assert len(result.history) == MAX_ITER
@@ -195,7 +186,7 @@ def test_iteration_records_contain_correct_agent_outputs():
         JudgeResult("fail", ["Claim X is wrong."]),
         JudgeResult("pass", []),
     ])
-    result = _execute("The Roman Empire", True, False, writer, judge)
+    result = _execute("The Roman Empire", True, writer, judge)
 
     first = result.history[0]
     assert first.iteration == 1

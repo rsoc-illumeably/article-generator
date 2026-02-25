@@ -1,6 +1,6 @@
 # article-generator
 
-A personal, internal Python service that generates fact-checked articles using a two-agent LLM loop (Writer + Judge). Containerized with Docker and deployable to a Digital Ocean Droplet. Accessible via curl or a browser UI.
+A personal, internal Python service that generates fact-checked articles using a two-agent LLM loop (Writer + Judge). Containerized with Docker and deployable to a Digital Ocean Droplet. Accessible via curl or a password-protected browser UI.
 
 ---
 
@@ -14,8 +14,9 @@ A personal, internal Python service that generates fact-checked articles using a
 | Writer agent | Done |
 | Judge agent (structured verdict via tool_use, web search) | Done |
 | Writer→Judge loop | Done |
-| `POST /api/generate` (fully wired) | Done |
-| Browser UI (session auth, frontend routes, Tailwind UI) | Not yet implemented |
+| `POST /api/generate` — submit job, returns `job_id` immediately | Done |
+| `GET /api/status/{job_id}` — poll live progress and retrieve result | Done |
+| Browser UI (session password gate, Tailwind UI, polling progress) | Done |
 
 ---
 
@@ -44,26 +45,27 @@ article-generator/
 │   ├── test_auth.py               # X-API-Key authentication tests
 │   ├── test_health.py             # GET /health endpoint tests
 │   ├── test_writer.py             # WriterAgent unit tests (mocked LLM)
-│   ├── test_judge.py              # JudgeAgent unit tests + _parse_verdict error cases (mocked LLM)
-│   └── test_loop.py               # Loop unit tests: termination, feedback threading, history flags (mock agents)
+│   ├── test_judge.py              # JudgeAgent unit tests (mocked LLM, two-call flow)
+│   └── test_loop.py               # Loop unit tests: termination, feedback threading, history flags
 │
 ├── src/
-│   ├── main.py                    # FastAPI app factory; all routes defined here
+│   ├── main.py                    # FastAPI app; routes, in-memory job store, thread pool
 │   ├── config.py                  # Loads YAML configs and exposes typed dataclasses
 │   │
 │   ├── api/
 │   │   └── auth.py                # FastAPI dependency: validates X-API-Key header
 │   │
-│   ├── frontend/                  # NOT YET IMPLEMENTED — stubs only
-│   │   ├── routes.py              # GET / (UI or login), POST /session (password submit)
+│   ├── frontend/
+│   │   ├── routes.py              # GET / (login or UI), POST /session (password submit)
 │   │   ├── session.py             # In-memory session store for browser auth
 │   │   └── templates/
-│   │       └── index.html         # Single-page Tailwind UI
+│   │       ├── login.html         # Password gate page
+│   │       └── index.html         # Single-page Tailwind UI with polling progress
 │   │
 │   ├── agents/
 │   │   ├── writer.py              # Writer agent: builds prompt, calls LLM, returns draft
 │   │   ├── judge.py               # Judge agent: call 1 web search, call 2 forced tool verdict
-│   │   └── loop.py                # Writer→Judge iteration loop; returns GenerateResponse or ErrorResponse
+│   │   └── loop.py                # Writer→Judge loop; writes live status to job dict
 │   │
 │   ├── llm/
 │   │   ├── interface.py           # Abstract LLM base class: complete() + complete_structured()
@@ -201,11 +203,11 @@ Tests run locally against the FastAPI app directly — no Docker required.
 
 | File | Tests | What is verified |
 |---|---|---|
-| `tests/test_auth.py` | 4 | Missing key → 401; wrong key → 401; correct key → 200 (loop patched out); 401 body includes `detail` field |
+| `tests/test_auth.py` | 4 | Missing key → 401; wrong key → 401; correct key → 200 with `job_id` (executor patched); 401 body includes `detail` field |
 | `tests/test_health.py` | 2 | Returns 200; response shape contains status, provider, model, max_iterations |
 | `tests/test_writer.py` | 8 | Return value; single LLM call; topic in prompt; no leftover placeholder; feedback injection; feedback header absent without feedback; article rules in prompt; no tools passed |
 | `tests/test_judge.py` | 7 | Web search tool on call 1; topic and article in prompt; verdict tool on call 2; research threaded into verdict call; pass verdict; fail verdict with annotations |
-| `tests/test_loop.py` | 12 | Pass on iteration 1; pass on iteration 2; error after cap; first writer call has no feedback; annotations threaded to next writer call; feedback replaced each round; draft flows writer→judge; verbose=false omits history; verbose=true populates history; dev_mode populates history; error always includes history; IterationRecord fields correct |
+| `tests/test_loop.py` | 11 | Pass on iteration 1; pass on iteration 2; error after cap; first writer call has no feedback; annotations threaded to next writer call; feedback replaced each round; draft flows writer→judge; verbose=false omits history; verbose=true populates history; error always includes history; IterationRecord fields correct |
 
 No test requires a real `.env` file or live API calls. `conftest.py` injects a dummy `API_KEY` via `monkeypatch`, provides `MockLLMClient` (which stubs both `complete` and `complete_structured`) for agent tests, and `test_loop.py` uses its own `MockWriterAgent` and `MockJudgeAgent`.
 
@@ -281,9 +283,9 @@ Two checks run in sequence:
 
 ## Making Requests with curl
 
-The `POST /api/generate` endpoint is fully implemented. It runs the Writer→Judge loop and returns either a success response (article passed fact-checking) or an error response (iteration cap reached without passing).
+Generation is now asynchronous. `POST /api/generate` returns a `job_id` immediately; `GET /api/status/{job_id}` is polled to track progress and retrieve the result.
 
-**Generate an article (concise response):**
+**Step 1 — Submit a job:**
 
 ```bash
 curl -X POST https://YOUR_DROPLET_IP/api/generate \
@@ -292,87 +294,86 @@ curl -X POST https://YOUR_DROPLET_IP/api/generate \
   -d '{"topic": "The history of the Roman Empire", "verbose": false}'
 ```
 
-**Generate with full verbose output (iteration history included):**
-
-```bash
-curl -X POST https://YOUR_DROPLET_IP/api/generate \
-  -H "X-API-Key: your_api_key_here" \
-  -H "Content-Type: application/json" \
-  -d '{"topic": "The history of the Roman Empire", "verbose": true}'
+**Response:**
+```json
+{"job_id": "3f7a1c2e-..."}
 ```
 
-**With dev mode enabled (includes per-iteration agent trace):**
+**Step 2 — Poll for status:**
 
 ```bash
-curl -X POST https://YOUR_DROPLET_IP/api/generate \
-  -H "X-API-Key: your_api_key_here" \
-  -H "Content-Type: application/json" \
-  -d '{"topic": "The history of the Roman Empire", "verbose": true, "dev_mode": true}'
+curl https://YOUR_DROPLET_IP/api/status/3f7a1c2e-... \
+  -H "X-API-Key: your_api_key_here"
+```
+
+**While running:**
+```json
+{
+  "status": "running",
+  "iteration": 2,
+  "max_iterations": 5,
+  "phase": "judging",
+  "last_verdict": "fail",
+  "result": null,
+  "error": null
+}
+```
+
+**When done:**
+```json
+{
+  "status": "done",
+  "iteration": 2,
+  "max_iterations": 5,
+  "phase": "judging",
+  "last_verdict": "pass",
+  "result": {
+    "success": true,
+    "article": "<full article text>",
+    "iterations": 2,
+    "history": null
+  },
+  "error": null
+}
+```
+
+**When error (iteration cap reached):**
+```json
+{
+  "status": "error",
+  "iteration": 5,
+  "max_iterations": 5,
+  "phase": "judging",
+  "last_verdict": "fail",
+  "result": {
+    "success": false,
+    "error": "Article did not pass after 5 iterations.",
+    "iterations": 5,
+    "history": [...]
+  },
+  "error": "Article did not pass after 5 iterations."
+}
 ```
 
 For local development, replace `https://YOUR_DROPLET_IP` with `http://localhost:8000`.
 
 > **Note:** The self-signed cert will cause curl to fail with an SSL error.
 > Add `-k` to skip cert verification for local testing against the prod stack:
-> `curl -k -X POST https://YOUR_DROPLET_IP/api/generate ...`
-
-**Success response shape (`verbose: false`):**
-```json
-{
-  "success": true,
-  "article": "<full article text>",
-  "iterations": 2,
-  "history": null
-}
-```
-
-**Success response shape (`verbose: true`):**
-```json
-{
-  "success": true,
-  "article": "<full article text>",
-  "iterations": 2,
-  "history": [
-    {
-      "iteration": 1,
-      "writer_output": "<first draft>",
-      "judge_verdict": "fail",
-      "judge_annotations": ["Claim X is unverified.", "Missing conclusion."]
-    },
-    {
-      "iteration": 2,
-      "writer_output": "<revised draft>",
-      "judge_verdict": "pass",
-      "judge_annotations": []
-    }
-  ]
-}
-```
-
-**Error response (iteration cap reached):**
-```json
-{
-  "success": false,
-  "error": "Article did not pass after 5 iterations.",
-  "iterations": 5,
-  "history": [...]
-}
-```
+> `curl -k https://YOUR_DROPLET_IP/api/status/...`
 
 ---
 
 ## Using the Browser UI
 
-> **Not yet implemented.** The frontend layer (`src/frontend/`) is scaffolded but not built. Access the service via curl until the browser UI is complete.
-
-When implemented, the browser UI will work as follows:
-
 1. Navigate to `http://localhost:8000` (local) or `https://YOUR_DROPLET_IP` (prod).
-2. Enter the session password set in your `.env` to unlock the UI.
-3. Type a topic in the text box, or upload a `.txt` file — the file's contents are loaded into the topic field and treated identically to typed input.
-4. Toggle **Verbose** to include the full iteration history in the response.
-5. Toggle **Dev Panel** to see the turn-by-turn agent interaction rendered after the article loads.
-6. Click **Generate** and wait. Results appear in the output area below.
+2. Enter the session password set in `FRONTEND_SESSION_PASSWORD` in your `.env` to unlock the UI. The session persists until the container restarts — no timeout.
+3. Type a topic in the text box, or upload a `.txt` file — the file's contents are loaded into the topic field.
+4. Toggle **Verbose** to include the full iteration history below the article — each iteration shows its verdict (PASS/FAIL) and any Judge annotations.
+5. Click **Generate**. A progress card appears immediately showing the current iteration, phase (Writer drafting / Judge reviewing), and elapsed time — updated every 2 seconds via polling.
+7. When generation completes, the article appears below with iteration count and total time badges.
+
+**How the UI handles long-running generation:**
+The browser submits the job and receives a `job_id` in milliseconds. The loop runs entirely in a background thread on the server. The browser polls `GET /api/status/{job_id}` every 2 seconds — each poll is a short-lived request immune to connection timeouts. Generation can take many minutes with no risk of a "Failed to fetch" error.
 
 ---
 
@@ -429,8 +430,8 @@ docker compose -f docker-compose.prod.yml up -d --build
 
 All secrets live in `.env` (never committed). See `.env.example` for the full list.
 
-| Variable                    | Description                                                    |
-| --------------------------- | -------------------------------------------------------------- |
-| `ANTHROPIC_API_KEY`         | Anthropic API key for Claude                                   |
-| `API_KEY`                   | Static key required in the `X-API-Key` header for API requests |
-| `FRONTEND_SESSION_PASSWORD` | Password entered in the browser to unlock the UI (not yet active) |
+| Variable                    | Description                                                              |
+| --------------------------- | ------------------------------------------------------------------------ |
+| `ANTHROPIC_API_KEY`         | Anthropic API key for Claude                                             |
+| `API_KEY`                   | Static key required in the `X-API-Key` header for all API requests       |
+| `FRONTEND_SESSION_PASSWORD` | Password entered in the browser to unlock the UI; session persists until container restart |
