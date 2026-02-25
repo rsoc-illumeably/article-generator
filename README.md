@@ -62,11 +62,11 @@ article-generator/
 │   │
 │   ├── agents/
 │   │   ├── writer.py              # Writer agent: builds prompt, calls LLM, returns draft
-│   │   ├── judge.py               # Judge agent: fact-checks via web search, parses YAML verdict
+│   │   ├── judge.py               # Judge agent: call 1 web search, call 2 forced tool verdict
 │   │   └── loop.py                # Writer→Judge iteration loop; returns GenerateResponse or ErrorResponse
 │   │
 │   ├── llm/
-│   │   ├── interface.py           # Abstract LLM base class (provider-agnostic)
+│   │   ├── interface.py           # Abstract LLM base class: complete() + complete_structured()
 │   │   ├── factory.py             # Instantiates the configured LLM client from config/app.yml
 │   │   └── anthropic_client.py    # Concrete Anthropic/Claude implementation
 │   │
@@ -257,7 +257,7 @@ Two checks run in sequence:
 
 ### `check_judge.py` — Judge agent
 
-Verifies the Judge agent returns a structurally valid YAML verdict and correctly flags a factually flawed article. Uses web search — each check takes longer than the other scripts.
+Verifies the Judge agent returns a structurally valid verdict and correctly flags a factually flawed article. Uses web search — each check takes longer than the other scripts.
 
 ```bash
 python scripts/check_judge.py
@@ -373,6 +373,30 @@ When implemented, the browser UI will work as follows:
 4. Toggle **Verbose** to include the full iteration history in the response.
 5. Toggle **Dev Panel** to see the turn-by-turn agent interaction rendered after the article loads.
 6. Click **Generate** and wait. Results appear in the output area below.
+
+---
+
+## Judge Agent Design
+
+The Judge uses a deliberate two-call flow to guarantee structured output without any text parsing.
+
+**Call 1 — research:**
+The Judge is given Anthropic's built-in `web_search` tool and told to verify every factual claim in the article. The model searches freely and returns a plain-text analysis of what it found. No verdict is produced yet.
+
+**Call 2 — forced verdict:**
+The research text from call 1 is appended to the conversation as an assistant message. The Judge is then called again with only the `submit_verdict` tool available and `tool_choice` set to force that specific tool. The Anthropic API guarantees the response conforms to the tool's schema before it reaches the application — `verdict` is always `"pass"` or `"fail"`, and `annotations` is always a list of strings. No YAML or JSON parsing occurs on our side.
+
+```
+call 1:  system_prompt + [user: "Review the article now."]
+         tools = [web_search]
+         → returns: text analysis
+
+call 2:  system_prompt + [user: "Review...", assistant: <analysis>, user: "Submit verdict now."]
+         tools = [submit_verdict]   tool_choice = {"type": "tool", "name": "submit_verdict"}
+         → returns: {"verdict": "pass"|"fail", "annotations": [...]}
+```
+
+The `submit_verdict` tool is defined in `src/agents/judge.py` as `VERDICT_TOOL`. The `complete_structured()` method on `LLMInterface` (implemented in `anthropic_client.py`) handles the forced tool call and returns the tool input as a plain Python dict.
 
 ---
 
