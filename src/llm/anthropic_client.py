@@ -14,7 +14,7 @@ import anthropic
 from src.config import get_config
 from src.llm.interface import LLMInterface
 
-WEB_SEARCH_TOOL: dict = {"type": "web_search_20250305"}
+WEB_SEARCH_TOOL: dict = {"type": "web_search_20250305", "name": "web_search"}
 
 
 class AnthropicClient(LLMInterface):

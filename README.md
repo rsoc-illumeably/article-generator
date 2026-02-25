@@ -35,14 +35,17 @@ article-generator/
 ├── README.md                      # This file
 │
 ├── scripts/
-│   └── check_api.py               # Live connectivity check: verifies API key + provider reachability
+│   ├── check_api.py               # Live connectivity check: verifies API key + provider reachability
+│   ├── check_writer.py            # Live Writer agent check: initial draft + feedback revision
+│   └── check_judge.py             # Live Judge agent check: valid article + flawed article (expects fail)
 │
 ├── tests/
 │   ├── conftest.py                # Shared fixtures: TestClient, TEST_API_KEY, MockLLMClient
 │   ├── test_auth.py               # X-API-Key authentication tests
 │   ├── test_health.py             # GET /health endpoint tests
 │   ├── test_writer.py             # WriterAgent unit tests (mocked LLM)
-│   └── test_judge.py              # JudgeAgent unit tests + _parse_verdict error cases (mocked LLM)
+│   ├── test_judge.py              # JudgeAgent unit tests + _parse_verdict error cases (mocked LLM)
+│   └── test_loop.py               # Loop unit tests: termination, feedback threading, history flags (mock agents)
 │
 ├── src/
 │   ├── main.py                    # FastAPI app factory; all routes defined here
@@ -191,40 +194,38 @@ Tests run locally against the FastAPI app directly — no Docker required.
    pytest tests/test_health.py
    pytest tests/test_writer.py
    pytest tests/test_judge.py
+   pytest tests/test_loop.py
    ```
 
 **What the tests currently cover:**
 
 | File | Tests | What is verified |
 |---|---|---|
-| `tests/test_auth.py` | 4 | Missing key → 401; wrong key → 401; correct key → 200; 401 body includes `detail` field |
+| `tests/test_auth.py` | 4 | Missing key → 401; wrong key → 401; correct key → 200 (loop patched out); 401 body includes `detail` field |
 | `tests/test_health.py` | 2 | Returns 200; response shape contains status, provider, model, max_iterations |
 | `tests/test_writer.py` | 8 | Return value; single LLM call; topic in prompt; no leftover placeholder; feedback injection; feedback header absent without feedback; article rules in prompt; no tools passed |
 | `tests/test_judge.py` | 9 | Web search tool passed; topic and article in prompt; YAML pass verdict; YAML fail verdict with annotations; raises on malformed YAML; raises on non-mapping; raises on missing verdict field; raises on invalid verdict value; raises on non-list annotations |
+| `tests/test_loop.py` | 12 | Pass on iteration 1; pass on iteration 2; error after cap; first writer call has no feedback; annotations threaded to next writer call; feedback replaced each round; draft flows writer→judge; verbose=false omits history; verbose=true populates history; dev_mode populates history; error always includes history; IterationRecord fields correct |
 
-**Note on `test_auth.py`:** `test_correct_key_returns_200` sends a real request to `POST /api/generate`, which now calls the full agent loop. This test will fail without `ANTHROPIC_API_KEY` set in the test environment. This test needs to be updated now that the route is wired — it is a known pending fix.
-
-Agent tests (`test_writer.py`, `test_judge.py`) do not require a real `.env` file — they use `MockLLMClient` from `conftest.py`. Auth and health tests inject a dummy `API_KEY` via `monkeypatch`.
+No test requires a real `.env` file or live API calls. `conftest.py` injects a dummy `API_KEY` via `monkeypatch`, provides `MockLLMClient` for agent tests, and `test_loop.py` uses its own `MockWriterAgent` and `MockJudgeAgent`.
 
 ---
 
-## Checking API Connectivity
+## Live Checks
 
-Before deploying, verify that your API key is valid and the configured provider is reachable.
+Three scripts make real API calls to verify the service end-to-end. None of these are part of the `pytest` suite — run them manually from the project root with the virtual environment active.
 
-**Prerequisites:** Virtual environment active with dependencies installed.
+**Prerequisites:** Virtual environment active, `.env` present with `ANTHROPIC_API_KEY` set.
 
-1. Activate the virtual environment:
-   ```bash
-   source .venv/bin/activate
-   ```
+---
 
-2. Run the script from the project root:
-   ```bash
-   python scripts/check_api.py
-   ```
+### `check_api.py` — Provider connectivity
 
-The script reads the active provider and model from `config/app.yml`, auto-loads credentials from `.env`, instantiates the configured LLM client, sends a single minimal completion request, and reports pass or fail.
+Verifies the API key is valid and the configured provider is reachable. Makes a single minimal completion request.
+
+```bash
+python scripts/check_api.py
+```
 
 **Expected output on success:**
 ```
@@ -238,7 +239,37 @@ Model    : claude-sonnet-4-6
 [PASS] API call succeeded.
 ```
 
-**Failure modes:**
+---
+
+### `check_writer.py` — Writer agent
+
+Verifies the Writer agent produces a non-empty draft and correctly incorporates Judge feedback on revision.
+
+```bash
+python scripts/check_writer.py
+```
+
+Two checks run in sequence:
+1. **Initial draft** — calls `writer.write(topic=...)` with no feedback; asserts a non-empty response is returned and prints the full draft
+2. **Feedback revision** — calls `writer.write(topic=..., feedback=[...])` with two specific annotations; asserts a non-empty revision is returned and prints it
+
+---
+
+### `check_judge.py` — Judge agent
+
+Verifies the Judge agent returns a structurally valid YAML verdict and correctly flags a factually flawed article. Uses web search — each check takes longer than the other scripts.
+
+```bash
+python scripts/check_judge.py
+```
+
+Two checks run in sequence:
+1. **Factually sound article** — judges an accurate Apollo 11 article; asserts the verdict is `"pass"` or `"fail"` and annotations is a list (structural validation only)
+2. **Factually flawed article** — judges an article falsely claiming Nikola Tesla invented the telephone; asserts the verdict is `"fail"` with at least one annotation (behavioral validation — the web search must catch the error)
+
+---
+
+**Common failure modes across all scripts:**
 
 | Output | Cause | Fix |
 |---|---|---|
