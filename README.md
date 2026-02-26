@@ -1,22 +1,6 @@
 # article-generator
 
-A personal, internal Python service that generates fact-checked articles using a two-agent LLM loop (Writer + Judge). Containerized with Docker and deployable to a Digital Ocean Droplet. Accessible via curl or a password-protected browser UI.
-
----
-
-## Implementation Status
-
-| Layer | Status |
-|---|---|
-| FastAPI app, config loader, Pydantic schemas | Done |
-| X-API-Key authentication | Done |
-| LLM abstraction (interface, Anthropic client, factory) | Done |
-| Writer agent | Done |
-| Judge agent (structured verdict via tool_use, web search) | Done |
-| Writer→Judge loop | Done |
-| `POST /api/generate` — submit job, returns `job_id` immediately | Done |
-| `GET /api/status/{job_id}` — poll live progress and retrieve result | Done |
-| Browser UI (session password gate, Tailwind UI, polling progress) | Done |
+A internal Python service that generates fact-checked articles using a two-agent LLM loop (Writer + Judge) architecture. Containerized with Docker and deployable to a Digital Ocean Droplet. Accessible via curl or a password-protected browser UI.
 
 ---
 
@@ -96,7 +80,7 @@ article-generator/
 1. Clone the repo:
 
    ```bash
-   git clone <repo-url>
+   git clone https://github.com/rsoc-illumeably/article-generator.git
    cd article-generator
    ```
 
@@ -134,7 +118,7 @@ article-generator/
 1. SSH into your Droplet and clone the repo:
 
    ```bash
-   git clone <repo-url>
+   git clone https://github.com/rsoc-illumeably/article-generator.git
    cd article-generator
    ```
 
@@ -170,22 +154,26 @@ Tests run locally against the FastAPI app directly — no Docker required.
 **Prerequisites:** Python 3.12+ with a virtual environment.
 
 1. Create and activate a virtual environment (first time only):
+
    ```bash
    python -m venv .venv
    source .venv/bin/activate
    ```
 
 2. Install all dependencies:
+
    ```bash
    pip install -r requirements.txt -r requirements-dev.txt
    ```
 
 3. Run the full test suite:
+
    ```bash
    pytest
    ```
 
 4. Run with verbose output to see each test name:
+
    ```bash
    pytest -v
    ```
@@ -201,13 +189,13 @@ Tests run locally against the FastAPI app directly — no Docker required.
 
 **What the tests currently cover:**
 
-| File | Tests | What is verified |
-|---|---|---|
-| `tests/test_auth.py` | 4 | Missing key → 401; wrong key → 401; correct key → 200 with `job_id` (executor patched); 401 body includes `detail` field |
-| `tests/test_health.py` | 2 | Returns 200; response shape contains status, provider, model, max_iterations |
-| `tests/test_writer.py` | 8 | Return value; single LLM call; topic in prompt; no leftover placeholder; feedback injection; feedback header absent without feedback; article rules in prompt; no tools passed |
-| `tests/test_judge.py` | 7 | Web search tool on call 1; topic and article in prompt; verdict tool on call 2; research threaded into verdict call; pass verdict; fail verdict with annotations |
-| `tests/test_loop.py` | 11 | Pass on iteration 1; pass on iteration 2; error after cap; first writer call has no feedback; annotations threaded to next writer call; feedback replaced each round; draft flows writer→judge; verbose=false omits history; verbose=true populates history; error always includes history; IterationRecord fields correct |
+| File                   | Tests | What is verified                                                                                                                                                                                                                                                                                                           |
+| ---------------------- | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tests/test_auth.py`   | 4     | Missing key → 401; wrong key → 401; correct key → 200 with `job_id` (executor patched); 401 body includes `detail` field                                                                                                                                                                                                   |
+| `tests/test_health.py` | 2     | Returns 200; response shape contains status, provider, model, max_iterations                                                                                                                                                                                                                                               |
+| `tests/test_writer.py` | 8     | Return value; single LLM call; topic in prompt; no leftover placeholder; feedback injection; feedback header absent without feedback; article rules in prompt; no tools passed                                                                                                                                             |
+| `tests/test_judge.py`  | 7     | Web search tool on call 1; topic and article in prompt; verdict tool on call 2; research threaded into verdict call; pass verdict; fail verdict with annotations                                                                                                                                                           |
+| `tests/test_loop.py`   | 11    | Pass on iteration 1; pass on iteration 2; error after cap; first writer call has no feedback; annotations threaded to next writer call; feedback replaced each round; draft flows writer→judge; verbose=false omits history; verbose=true populates history; error always includes history; IterationRecord fields correct |
 
 No test requires a real `.env` file or live API calls. `conftest.py` injects a dummy `API_KEY` via `monkeypatch`, provides `MockLLMClient` (which stubs both `complete` and `complete_structured`) for agent tests, and `test_loop.py` uses its own `MockWriterAgent` and `MockJudgeAgent`.
 
@@ -230,6 +218,7 @@ python scripts/check_api.py
 ```
 
 **Expected output on success:**
+
 ```
 Provider : anthropic
 Model    : claude-sonnet-4-6
@@ -252,6 +241,7 @@ python scripts/check_writer.py
 ```
 
 Two checks run in sequence:
+
 1. **Initial draft** — calls `writer.write(topic=...)` with no feedback; asserts a non-empty response is returned and prints the full draft
 2. **Feedback revision** — calls `writer.write(topic=..., feedback=[...])` with two specific annotations; asserts a non-empty revision is returned and prints it
 
@@ -266,18 +256,9 @@ python scripts/check_judge.py
 ```
 
 Two checks run in sequence:
+
 1. **Factually sound article** — judges an accurate Apollo 11 article; asserts the verdict is `"pass"` or `"fail"` and annotations is a list (structural validation only)
 2. **Factually flawed article** — judges an article falsely claiming Nikola Tesla invented the telephone; asserts the verdict is `"fail"` with at least one annotation (behavioral validation — the web search must catch the error)
-
----
-
-**Common failure modes across all scripts:**
-
-| Output | Cause | Fix |
-|---|---|---|
-| `[FAIL] Missing environment variable: 'ANTHROPIC_API_KEY'` | Key absent from `.env` | Add `ANTHROPIC_API_KEY` to `.env` |
-| `[FAIL] No connectivity check implemented for provider '...'` | `config/app.yml` names an unsupported provider | Correct the provider name or implement a check for it |
-| `[FAIL] <API error message>` | Key present but invalid, or provider unreachable | Verify the key is correct and the provider API is up |
 
 ---
 
@@ -295,8 +276,9 @@ curl -X POST https://YOUR_DROPLET_IP/api/generate \
 ```
 
 **Response:**
+
 ```json
-{"job_id": "3f7a1c2e-..."}
+{ "job_id": "3f7a1c2e-..." }
 ```
 
 **Step 2 — Poll for status:**
@@ -307,6 +289,7 @@ curl https://YOUR_DROPLET_IP/api/status/3f7a1c2e-... \
 ```
 
 **While running:**
+
 ```json
 {
   "status": "running",
@@ -320,6 +303,7 @@ curl https://YOUR_DROPLET_IP/api/status/3f7a1c2e-... \
 ```
 
 **When done:**
+
 ```json
 {
   "status": "done",
@@ -338,6 +322,7 @@ curl https://YOUR_DROPLET_IP/api/status/3f7a1c2e-... \
 ```
 
 **When error (iteration cap reached):**
+
 ```json
 {
   "status": "error",
@@ -370,7 +355,7 @@ For local development, replace `https://YOUR_DROPLET_IP` with `http://localhost:
 3. Type a topic in the text box, or upload a `.txt` file — the file's contents are loaded into the topic field.
 4. Toggle **Verbose** to include the full iteration history below the article — each iteration shows its verdict (PASS/FAIL) and any Judge annotations.
 5. Click **Generate**. A progress card appears immediately showing the current iteration, phase (Writer drafting / Judge reviewing), and elapsed time — updated every 2 seconds via polling.
-7. When generation completes, the article appears below with iteration count and total time badges.
+6. When generation completes, the article appears below with iteration count and total time badges.
 
 **How the UI handles long-running generation:**
 The browser submits the job and receives a `job_id` in milliseconds. The loop runs entirely in a background thread on the server. The browser polls `GET /api/status/{job_id}` every 2 seconds — each poll is a short-lived request immune to connection timeouts. Generation can take many minutes with no risk of a "Failed to fetch" error.
@@ -430,8 +415,8 @@ docker compose -f docker-compose.prod.yml up -d --build
 
 All secrets live in `.env` (never committed). See `.env.example` for the full list.
 
-| Variable                    | Description                                                              |
-| --------------------------- | ------------------------------------------------------------------------ |
-| `ANTHROPIC_API_KEY`         | Anthropic API key for Claude                                             |
-| `API_KEY`                   | Static key required in the `X-API-Key` header for all API requests       |
+| Variable                    | Description                                                                                |
+| --------------------------- | ------------------------------------------------------------------------------------------ |
+| `ANTHROPIC_API_KEY`         | Anthropic API key for Claude                                                               |
+| `API_KEY`                   | Static key required in the `X-API-Key` header for all API requests                         |
 | `FRONTEND_SESSION_PASSWORD` | Password entered in the browser to unlock the UI; session persists until container restart |
