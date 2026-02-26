@@ -174,11 +174,13 @@
     }
 
     function updateProgress(data) {
-      const phaseLabel = data.phase === 'writing'
-        ? 'Writer drafting\u2026'
-        : data.phase === 'judging'
-          ? 'Judge reviewing\u2026'
-          : 'Starting\u2026';
+      const phaseLabels = {
+        writer_researching: 'Writer researching\u2026',
+        writer_drafting:    'Writer drafting\u2026',
+        judge_reviewing:    'Judge reviewing\u2026',
+        judge_formatting:   'Judge formatting verdict\u2026',
+      };
+      const phaseLabel = phaseLabels[data.phase] || 'Starting\u2026';
       const iterLabel = data.iteration > 0
         ? `Iteration ${data.iteration} of ${data.max_iterations} \u2014 ${phaseLabel}`
         : phaseLabel;

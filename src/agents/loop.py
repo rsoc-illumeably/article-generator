@@ -73,24 +73,24 @@ def _execute(
     history: list[IterationRecord] = []
     feedback: list[str] | None = None
 
+    def _set_phase(phase: str) -> None:
+        if job is not None:
+            job["phase"] = phase
+
     for iteration in range(1, max_iterations + 1):
         iteration_start = time.monotonic()
 
         if job is not None:
             job["iteration"] = iteration
-            job["phase"] = "writing"
 
-        draft = writer.write(topic=topic, feedback=feedback)
+        draft = writer.write(topic=topic, feedback=feedback, on_phase=_set_phase)
 
         # Strip the "## Uncertain Claims" appendix before storing or returning
         # the article — the Judge receives the full draft so it can use the flags.
         _parts = draft.split("\n## Uncertain Claims", 1)
         clean_draft = _parts[0].strip() if len(_parts) > 1 else draft
 
-        if job is not None:
-            job["phase"] = "judging"
-
-        result = judge.judge(topic=topic, article=draft)
+        result = judge.judge(topic=topic, article=draft, on_phase=_set_phase)
         duration = time.monotonic() - iteration_start
 
         if job is not None:

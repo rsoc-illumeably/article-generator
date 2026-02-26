@@ -17,14 +17,22 @@ class MockLLMClient(LLMInterface):
     Records every call in self.calls / self.structured_calls for assertion.
     Returns self.response (for complete) or self.structured_response (for
     complete_structured), both of which can be set per test.
+
+    If `responses` is provided, complete() pops from the front of that list
+    on each invocation, falling back to self.response when the list is
+    exhausted. This allows tests that need distinct return values per call
+    (e.g. research text on call 1, article text on call 2) to control the
+    sequence precisely without breaking tests that only set response.
     """
 
     def __init__(
         self,
         response: str = "mock response",
+        responses: list[str] | None = None,
         structured_response: dict | None = None,
     ) -> None:
         self.response = response
+        self._response_queue: list[str] = list(responses) if responses else []
         self.structured_response = (
             structured_response
             if structured_response is not None
@@ -42,7 +50,7 @@ class MockLLMClient(LLMInterface):
         self.calls.append(
             {"system_prompt": system_prompt, "messages": messages, "tools": tools}
         )
-        return self.response
+        return self._response_queue.pop(0) if self._response_queue else self.response
 
     def complete_structured(
         self,

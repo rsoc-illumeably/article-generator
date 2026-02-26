@@ -66,12 +66,14 @@ class JudgeAgent:
         self._llm = llm
         self._judge_config = get_config().judge
 
-    def judge(self, topic: str, article: str) -> JudgeResult:
+    def judge(self, topic: str, article: str, on_phase: object = None) -> JudgeResult:
         """Fact-check the article and return a structured verdict.
 
         Args:
             topic: The original article topic.
             article: The Writer's draft to review.
+            on_phase: Optional callable(phase: str) invoked before each
+                      sub-step so the caller can track granular progress.
 
         Returns:
             JudgeResult with verdict ("pass" or "fail") and any annotations.
@@ -79,6 +81,8 @@ class JudgeAgent:
         system_prompt = self._build_system_prompt(topic, article)
 
         # Call 1: let the model research using web search.
+        if on_phase:
+            on_phase("judge_reviewing")
         research_messages = [{"role": "user", "content": "Review the article now."}]
         research = self._llm.complete(
             system_prompt=system_prompt,
@@ -87,6 +91,8 @@ class JudgeAgent:
         )
 
         # Call 2: force a structured verdict based on the research.
+        if on_phase:
+            on_phase("judge_formatting")
         verdict_messages = research_messages + [
             {"role": "assistant", "content": research},
             {"role": "user", "content": "Submit your verdict now."},

@@ -27,7 +27,7 @@ class MockWriterAgent:
         self._responses = list(responses)
         self.calls: list[dict] = []
 
-    def write(self, topic: str, feedback: list[str] | None = None) -> str:
+    def write(self, topic: str, feedback: list[str] | None = None, on_phase=None) -> str:
         self.calls.append({"topic": topic, "feedback": feedback})
         return self._responses.pop(0)
 
@@ -39,7 +39,7 @@ class MockJudgeAgent:
         self._results = list(results)
         self.calls: list[dict] = []
 
-    def judge(self, topic: str, article: str) -> JudgeResult:
+    def judge(self, topic: str, article: str, on_phase=None) -> JudgeResult:
         self.calls.append({"topic": topic, "article": article})
         return self._results.pop(0)
 
