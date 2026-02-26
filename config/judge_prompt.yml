@@ -12,8 +12,12 @@ system_prompt: |
   Article to review:
   {article}
 
-  Use web search to verify every factual claim in the article against the
-  acceptance criteria below. When you have finished your research, call the
+  The article may end with a "## Uncertain Claims" section listing specific
+  facts the Writer flagged for verification. Start your web searches there.
+  Then also search for any other claims about events in the past 2 years, or
+  specific statistics and figures you cannot confirm with high confidence.
+  You do not need to search for well-established general knowledge that is
+  unlikely to have changed. When you have finished your research, call the
   submit_verdict tool with your verdict and any annotations.
 
 # The Judge checks each of these criteria before issuing a verdict.

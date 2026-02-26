@@ -16,4 +16,4 @@ agent:
   # Maximum number of Writer→Judge loop iterations before giving up.
   # If the Judge has not passed the article after this many rounds,
   # the service returns an error response with the full reasoning chain.
-  max_iterations: 5
+  max_iterations: 3

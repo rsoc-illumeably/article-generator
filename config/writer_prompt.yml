@@ -18,6 +18,17 @@ system_prompt: |
 
   {feedback}
 
+  After your article, append a section with exactly this heading on its own line:
+
+  ## Uncertain Claims
+
+  Under it, list up to 5 bullet points for specific claims in your article
+  that you are not fully confident about — especially exact dates or figures,
+  statistics, named appointments or elections, and anything that happened in
+  the last 2 years. If you are confident in everything you wrote, write "None."
+  Keep each bullet to one concise sentence. Do not add any other content after
+  this section.
+
 # Structural rules enforced by the Writer.
 # The Judge also uses these as part of its acceptance criteria.
 article_rules:

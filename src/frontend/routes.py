@@ -18,8 +18,7 @@ from src.frontend.session import create_session, is_valid
 
 router = APIRouter()
 
-_ui_template    = (Path(__file__).parent / "templates" / "index.html").read_text()
-_login_template = (Path(__file__).parent / "templates" / "login.html").read_text()
+_templates_dir = Path(__file__).parent / "templates"
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -28,12 +27,14 @@ def index(
     error: str | None = Query(default=None),
 ) -> HTMLResponse:
     if not is_valid(session_id):
+        login_template = (_templates_dir / "login.html").read_text()
         error_html = (
             '<p class="text-xs text-red-500 mt-1">Incorrect password.</p>'
             if error else ""
         )
-        return HTMLResponse(_login_template.replace("__ERROR__", error_html))
-    html = _ui_template.replace("__API_KEY__", os.environ.get("API_KEY", ""))
+        return HTMLResponse(login_template.replace("__ERROR__", error_html))
+    ui_template = (_templates_dir / "index.html").read_text()
+    html = ui_template.replace("__API_KEY__", os.environ.get("API_KEY", ""))
     return HTMLResponse(html)
 
 

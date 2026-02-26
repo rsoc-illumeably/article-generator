@@ -82,6 +82,11 @@ def _execute(
 
         draft = writer.write(topic=topic, feedback=feedback)
 
+        # Strip the "## Uncertain Claims" appendix before storing or returning
+        # the article — the Judge receives the full draft so it can use the flags.
+        _parts = draft.split("\n## Uncertain Claims", 1)
+        clean_draft = _parts[0].strip() if len(_parts) > 1 else draft
+
         if job is not None:
             job["phase"] = "judging"
 
@@ -94,7 +99,7 @@ def _execute(
         history.append(
             IterationRecord(
                 iteration=iteration,
-                writer_output=draft,
+                writer_output=clean_draft,
                 judge_verdict=result.verdict,
                 judge_annotations=result.annotations,
                 duration_seconds=round(duration, 1),
@@ -103,7 +108,7 @@ def _execute(
 
         if result.verdict == "pass":
             response = GenerateResponse(
-                article=draft,
+                article=clean_draft,
                 iterations=iteration,
                 history=history if verbose else None,
             )
