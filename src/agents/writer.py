@@ -140,7 +140,7 @@ class WriterAgent:
             "Article structure rules:\n"
             f"- Maximum word count: {rules.max_word_count}\n"
             f"- Maximum paragraph count: {rules.max_paragraph_count}\n"
-            f"- Required sections (in order): {', '.join(rules.required_sections)}\n"
+            f"- Required structure: {', '.join(rules.required_sections)}\n"
             f"- Tone: {rules.tone}"
         )
 

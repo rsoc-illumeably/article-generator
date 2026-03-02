@@ -82,9 +82,9 @@
           </button>
         </div>
       </div>
-      <div id="article"
-        class="bg-white rounded-2xl border border-slate-200 shadow-sm px-7 py-6
-               text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm px-7 py-6">
+        <iframe id="article" class="w-full" style="border: none; min-height: 300px;"
+          sandbox="allow-same-origin"></iframe>
       </div>
     </div>
 
@@ -234,7 +234,11 @@
     // --- Rendering ---
 
     function renderResult(result, elapsed) {
-      document.getElementById('article').textContent = result.article;
+      const iframe = document.getElementById('article');
+      iframe.srcdoc = result.article;
+      iframe.onload = () => {
+        iframe.style.height = iframe.contentDocument.body.scrollHeight + 'px';
+      };
       document.getElementById('timeBadge').textContent = elapsed;
       document.getElementById('iterBadge').textContent =
         `${result.iterations} iteration${result.iterations === 1 ? '' : 's'}`;
@@ -280,7 +284,8 @@
     }
 
     function copyArticle() {
-      const text = document.getElementById('article').textContent;
+      const iframe = document.getElementById('article');
+      const text = iframe.contentDocument?.body?.innerText;
       if (!text) return;
       navigator.clipboard.writeText(text).then(() => {
         const btn = document.getElementById('copyBtn');

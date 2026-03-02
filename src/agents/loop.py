@@ -85,9 +85,16 @@ def _execute(
 
         draft = writer.write(topic=topic, feedback=feedback, on_phase=_set_phase)
 
-        # Strip the "## Uncertain Claims" appendix before storing or returning
+        # Strip markdown code fences if the model wrapped its HTML output in them.
+        if draft.startswith("```"):
+            draft = draft.split("\n", 1)[-1]  # drop the opening ```html line
+        if draft.endswith("```"):
+            draft = draft.rsplit("```", 1)[0]
+        draft = draft.strip()
+
+        # Strip the <!--UNCERTAIN_CLAIMS ... --> comment before storing or returning
         # the article — the Judge receives the full draft so it can use the flags.
-        _parts = draft.split("\n## Uncertain Claims", 1)
+        _parts = draft.split("<!--UNCERTAIN_CLAIMS", 1)
         clean_draft = _parts[0].strip() if len(_parts) > 1 else draft
 
         result = judge.judge(topic=topic, article=draft, on_phase=_set_phase)
