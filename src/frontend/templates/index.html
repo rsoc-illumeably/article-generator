@@ -75,6 +75,11 @@
         <div class="flex items-center gap-2">
           <span id="timeBadge" class="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full"></span>
           <span id="iterBadge" class="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full"></span>
+          <button id="copyBtn" onclick="copyArticle()"
+            class="text-xs text-slate-500 hover:text-slate-700 bg-slate-100 hover:bg-slate-200
+                   px-2 py-0.5 rounded-full transition-colors">
+            Copy
+          </button>
         </div>
       </div>
       <div id="article"
@@ -272,6 +277,16 @@
             ${annotations}
           </div>`;
       }).join('');
+    }
+
+    function copyArticle() {
+      const text = document.getElementById('article').textContent;
+      if (!text) return;
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = document.getElementById('copyBtn');
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+      });
     }
 
     function showError(msg) {
