@@ -252,9 +252,11 @@
 
     function renderHistory(items) {
       document.getElementById('history').innerHTML = items.map(it => {
-        const pass = it.judge_verdict === 'pass';
-        const badge = pass
+        const verdict = it.judge_verdict;
+        const badge = verdict === 'pass'
           ? '<span class="text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">PASS</span>'
+          : verdict === 'pass_with_suggestions'
+          ? '<span class="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">SUGGESTIONS</span>'
           : '<span class="text-xs font-medium text-red-500 bg-red-50 px-2 py-0.5 rounded-full">FAIL</span>';
 
         const dur = it.duration_seconds || 0;

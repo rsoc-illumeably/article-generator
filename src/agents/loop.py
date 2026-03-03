@@ -100,20 +100,31 @@ def _execute(
         result = judge.judge(topic=topic, article=draft, on_phase=_set_phase)
         duration = time.monotonic() - iteration_start
 
+        has_should_fix = any(
+            a.startswith("[SHOULD FIX]") for a in result.annotations
+        )
+
+        # Use a distinct display verdict so the UI can render a third badge state.
+        # The tool only returns "pass"/"fail"; "pass_with_suggestions" is loop-internal.
+        if result.verdict == "pass" and has_should_fix:
+            display_verdict = "pass_with_suggestions"
+        else:
+            display_verdict = result.verdict
+
         if job is not None:
-            job["last_verdict"] = result.verdict
+            job["last_verdict"] = display_verdict
 
         history.append(
             IterationRecord(
                 iteration=iteration,
                 writer_output=clean_draft,
-                judge_verdict=result.verdict,
+                judge_verdict=display_verdict,
                 judge_annotations=result.annotations,
                 duration_seconds=round(duration, 1),
             )
         )
 
-        if result.verdict == "pass":
+        if result.verdict == "pass" and (not has_should_fix or iteration == max_iterations):
             response = GenerateResponse(
                 article=clean_draft,
                 iterations=iteration,
