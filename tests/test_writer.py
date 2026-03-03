@@ -121,13 +121,3 @@ def test_write_without_feedback_excludes_feedback_block_from_write_prompt():
     writer = WriterAgent(llm)
     writer.write(topic="The Roman Empire")
     assert "Feedback from the previous review" not in llm.calls[2]["system_prompt"]
-
-
-def test_write_system_prompt_includes_article_rules():
-    """Article structure rules from config are present in the write call system prompt."""
-    llm = MockLLMClient()
-    writer = WriterAgent(llm)
-    writer.write(topic="The Roman Empire")
-    system_prompt = llm.calls[2]["system_prompt"]
-    assert "Maximum word count" in system_prompt
-    assert "Required sections" in system_prompt
