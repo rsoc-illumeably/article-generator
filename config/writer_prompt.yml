@@ -42,11 +42,11 @@ system_prompt: |
   Each annotation is labeled with a severity:
 
   - [MUST FIX]: A verified factual error with a cited source. You must correct this
-    in your revision using the information provided in the annotation.
+    in your revision using the information provided in the annotation. Rewrite the flagged portion based on contents from the cited article. DO NOT rewrite the entire article
   - [SHOULD FIX]: A likely issue where sources conflict or are ambiguous. Revise the
     claim to use hedged or range-based language rather than committing to a single
     specific figure. If your draft already uses hedged language for this claim, you may
-    leave it as-is and do not need to change it.
+    leave it as-is and do not need to change it. Your objective is to rewrite the flagged content but follow a hedged and safe structure so as to not have it flagged in future iterations.
   - [SUGGESTION]: A minor note on clarity, tone, or structure. Address if you agree;
     ignore if you don't.
 

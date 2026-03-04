@@ -115,6 +115,7 @@
 
     let timerInterval = null;
     let timerStart = null;
+    let _articleHtml = '';
 
     function startTimer() {
       timerStart = Date.now();
@@ -234,6 +235,7 @@
     // --- Rendering ---
 
     function renderResult(result, elapsed) {
+      _articleHtml = result.article;
       const iframe = document.getElementById('article');
       iframe.srcdoc = result.article;
       iframe.onload = () => {
@@ -286,10 +288,8 @@
     }
 
     function copyArticle() {
-      const iframe = document.getElementById('article');
-      const text = iframe.contentDocument?.body?.innerText;
-      if (!text) return;
-      navigator.clipboard.writeText(text).then(() => {
+      if (!_articleHtml) return;
+      navigator.clipboard.writeText(_articleHtml).then(() => {
         const btn = document.getElementById('copyBtn');
         btn.textContent = 'Copied!';
         setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
